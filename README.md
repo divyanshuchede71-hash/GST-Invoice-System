@@ -20,11 +20,10 @@ Small businesses and accounting teams in India deal with GST invoices that arriv
 
 Most existing tools treat this as an OCR problem and answer a single question: what text is visible on the page?
 
-```mermaid
-flowchart LR
-    A["Invoice"] --> B["OCR"]
-    B --> C["Text"]
-    C --> D["Accounting System"]
+```text
++---------+     +-----+     +------+     +-------------------+
+| Invoice | --> | OCR | --> | Text | --> | Accounting System |
++---------+     +-----+     +------+     +-------------------+
 ```
 
 The trouble is that reading the text correctly does not mean the financial record is correct. A value can be perfectly legible and still lead to a wrong invoice total, a wrong tax calculation, or a wrong accounting entry. Traditional OCR returns values and leaves it to the user to decide whether they are right, which usually means rechecking every field by hand.
@@ -63,19 +62,37 @@ A core principle of the project is that uncertainty should be shown openly rathe
 
 We propose a trust layer that sits between messy financial documents and automated accounting. It does not replace the OCR step. It builds on it by adding a second independent reader, a rule engine, a recovery step, and an evidence trail.
 
-```mermaid
-flowchart TD
-    A["Invoice"] --> B["PaddleOCR"]
-    A --> C["Qwen2.5-VL"]
-    B --> D["Cross-Check"]
-    C --> D
-    D --> E["GST and Math Validation"]
-    E --> F{"Any field failed?"}
-    F -- "No" --> G["Verified"]
-    F -- "Yes" --> H["Targeted Re-read"]
-    H --> I{"Still uncertain?"}
-    I -- "No" --> G
-    I -- "Yes" --> J["Human Review"]
+```text
+Invoice
+   |
+   +-----------------+
+   |                 |
+   v                 v
+PaddleOCR        Qwen2.5-VL
+   |                 |
+   +--------+--------+
+            |
+            v
+       Cross-Check
+            |
+            v
+ GST + Math Validation
+            |
+            v
+    Any field failed?
+      |           |
+     No          Yes
+      |           |
+      v           v
+  VERIFIED   Targeted Re-read
+      ^           |
+      |           v
+      |    Still uncertain?
+      |      |           |
+      |     No          Yes
+      |      |           |
+      +------+           v
+                   HUMAN REVIEW
 ```
 
 ### Traditional OCR compared with VYOM+
@@ -118,12 +135,20 @@ flowchart TD
 
 The chain of evidence runs from the invoice region to the final decision.
 
-```mermaid
-flowchart LR
-    A["Invoice Region"] --> B["Extracted Value"]
-    B --> C["Independent Reading"]
-    C --> D["Validation"]
-    D --> E["Decision"]
+```text
+Invoice Region
+      |
+      v
+Extracted Value
+      |
+      v
+Independent Reading
+      |
+      v
+Validation
+      |
+      v
+Decision
 ```
 
 In the interface, this appears as a short explanation next to each field. For example:
@@ -162,13 +187,23 @@ Other signals include line items that do not add up to the total and deviations 
 
 **Invoice DNA.** For suppliers who send invoices repeatedly, VYOM+ builds a lightweight profile from earlier verified invoices. When a new invoice arrives, it is compared against that profile. A change in pattern does not prove anything, but it gives useful context about which invoices deserve closer inspection.
 
-```mermaid
-flowchart LR
-    A["Verified Invoices"] --> B["Supplier Profile"]
-    B --> C["Historical Patterns"]
-    C --> D["New Invoice"]
-    D --> E["Pattern Comparison"]
-    E --> F["Normal or Unusual"]
+```text
+Verified Invoices
+       |
+       v
+Supplier Profile
+       |
+       v
+Historical Patterns
+       |
+       v
+New Invoice
+       |
+       v
+Pattern Comparison
+       |
+       v
+Normal / Unusual
 ```
 
 | Profile element | What it captures |
@@ -275,44 +310,66 @@ The system never invents a correction just to make an invoice pass. If the evide
 
 The overall flow, from upload to final output, is shown below.
 
-```mermaid
-flowchart TD
-    A["Invoice Upload"] --> B["File Detection"]
-    B --> C["Structured Input"]
-    B --> D["PDF or Image Input"]
-    D --> E["Image Preparation"]
-    E --> F["PaddleOCR"]
-    E --> G["Qwen2.5-VL"]
-    F --> H["Cross-Check"]
-    G --> H
-    C --> H
-    H --> I["GST and Math Validation"]
-    I --> J{"Any field failed?"}
-    J -- "No" --> K["Verified"]
-    J -- "Yes" --> L["Targeted Re-read"]
-    L --> M["Validate Again"]
-    M --> N{"Passes now?"}
-    N -- "Yes" --> K
-    N -- "No" --> O["Human Review"]
-    K --> P["Evidence and Risk Report"]
-    O --> P
-    P --> Q["JSON, CSV and UI Result"]
+```text
+                         INVOICE
+                            |
+                      File Detection
+                            |
+              +-------------+-------------+
+              |                           |
+       Structured Input           PDF / Image Input
+              |                           |
+              |                   Image Preparation
+              |                           |
+              |               +-----------+-----------+
+              |               |                       |
+              |           PaddleOCR              Qwen2.5-VL
+              |               |                       |
+              |               +-----------+-----------+
+              |                           |
+              +-------------------->  Cross-Check
+                                          |
+                                 GST + Math Validation
+                                          |
+                                    Failed field?
+                                     /         \
+                                   No          Yes
+                                   |            |
+                                Verify    Targeted Re-read
+                                                |
+                                         Validate again
+                                                |
+                                          /           \
+                                       Pass           Fail
+                                        |               |
+                                     Verify       Human Review
+                                        |               |
+                                        +-------+-------+
+                                                |
+                                     Evidence + Risk Report
+                                                |
+                                       JSON / CSV / UI Result
 ```
 
 ### Privacy-first design
 
 By default, everything runs on the user's own machine: OCR, the vision model (through Ollama), validation, and evidence generation. The invoice does not leave the machine.
 
-```mermaid
-flowchart LR
-    A["Invoice"] --> B
-    subgraph B["Local processing on the user's machine"]
-        C["PaddleOCR"]
-        D["Qwen2.5-VL through Ollama"]
-        E["Validation"]
-        F["Evidence"]
-    end
-    B --> G["Local Result"]
+```text
+Invoice
+   |
+   v
++------------------------------------------+
+| Local processing on the user's machine   |
+|                                          |
+|   PaddleOCR                              |
+|   Qwen2.5-VL (through Ollama)            |
+|   Validation                             |
+|   Evidence                               |
++------------------------------------------+
+   |
+   v
+Local Result
 ```
 
 Running on a cloud GPU is an optional configuration that we may use for development and demos. It is not required by the core architecture.
@@ -321,44 +378,39 @@ Running on a cloud GPU is an optional configuration that we may use for developm
 
 ## 11. Component-Level Architecture
 
-```mermaid
-flowchart TD
-    subgraph IN["Input layer"]
-        A["File router"]
-        B["Image preparation"]
-    end
-    subgraph RD["Reading layer"]
-        C["OCR reader"]
-        D["Vision reader"]
-    end
-    subgraph VF["Verification layer"]
-        E["Cross-checker"]
-        F["GST validator"]
-        G["Math validator"]
-        H["Status engine"]
-    end
-    subgraph RC["Recovery layer"]
-        I["Recovery engine"]
-    end
-    subgraph OUT["Output layer"]
-        J["Evidence builder"]
-        K["Health and risk reporter"]
-        L["Streamlit UI, JSON and CSV"]
-    end
-    A --> B
-    B --> C
-    B --> D
-    C --> E
-    D --> E
-    E --> F
-    E --> G
-    F --> H
-    G --> H
-    H --> I
-    I --> E
-    H --> J
-    J --> K
-    K --> L
+```text
+INPUT LAYER
+  File router
+       |
+       v
+  Image preparation
+       |
+       v
+READING LAYER
+  PaddleOCR (OCR reader)        Qwen2.5-VL (vision reader)
+       |                                  |
+       +--------------+---------+---------+
+                      |
+                      v
+VERIFICATION LAYER
+  Cross-checker
+       |
+       v
+  GST validator + Math validator
+       |
+       v
+  Status engine ----------------------------+
+       |                                    |
+       | all fields decided                 | failed field
+       v                                    v
+OUTPUT LAYER                          RECOVERY LAYER
+  Evidence builder                    Recovery engine
+       |                              (crops the region, re-reads it,
+       v                               then sends it back to the
+  Health and risk reporter             cross-checker)
+       |
+       v
+  Streamlit UI, JSON and CSV
 ```
 
 | Component | What it does |
@@ -380,35 +432,38 @@ flowchart TD
 
 ## 12. Data / Information Flow
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Streamlit UI
-    participant P as Preparation
-    participant O as PaddleOCR
-    participant V as Qwen2.5-VL
-    participant R as Rule Engine
-
-    U->>UI: Upload invoice
-    UI->>P: Detect type and prepare file
-    par Reading by PaddleOCR
-        P->>O: Prepared page image
-    and Reading by Qwen2.5-VL
-        P->>V: Prepared page image
-    end
-    O-->>R: Text and coordinates
-    V-->>R: Extracted fields
-    R->>R: Cross-check and run GST and math validation
-    opt A field failed validation
-        R->>P: Request crop of the failed region
-        P->>O: Cropped region
-        P->>V: Cropped region
-        O-->>R: Re-read text
-        V-->>R: Re-read value
-        R->>R: Validate again
-    end
-    R-->>UI: Field statuses and evidence
-    UI-->>U: Side-by-side review and downloads
+```text
+User uploads invoice
+        |
+        v
+Streamlit UI: detect file type and route it
+        |
+        v
+Preparation: render PDF pages and clean images
+        |
+        +---------------------+
+        |                     |
+        v                     v
+   PaddleOCR             Qwen2.5-VL
+ text + coordinates     fields + layout
+        |                     |
+        +----------+----------+
+                   |
+                   v
+Rule engine: cross-check, GST and math validation
+                   |
+                   v
+      Any field failed?  --- Yes --->  Crop the region, re-read it with
+                   |                   both readers, validate again
+                   No                  |
+                   |                   |
+                   +<------------------+
+                   |
+                   v
+Field statuses and evidence
+                   |
+                   v
+Side-by-side review, JSON and CSV
 ```
 
 | Step | What happens |
@@ -430,14 +485,25 @@ sequenceDiagram
 
 VYOM+ includes a small, controlled loop that behaves in an agent-like way, but it is deliberately bounded. It is guided by the rule engine rather than left to act freely.
 
-```mermaid
-flowchart LR
-    A["Perceive: two readers extract the invoice"] --> B["Check: rules find the failed field"]
-    B --> C["Act: crop and re-read the region"]
-    C --> D["Re-check: validate again"]
-    D --> E{"Enough evidence?"}
-    E -- "Yes" --> F["Verified"]
-    E -- "No" --> G["Stop and ask a human"]
+```text
+Perceive:  two readers extract the invoice
+        |
+        v
+Check:     rule engine finds the failed field
+        |
+        v
+Act:       crop the region and re-read it
+        |
+        v
+Re-check:  validate the new reading
+        |
+        v
+Enough evidence?
+   |          |
+  Yes         No
+   |          |
+   v          v
+Verified   Stop and ask a human
 ```
 
 | Step | What the system does |
@@ -532,16 +598,31 @@ The total does not reconcile and is off by ₹100. The invoice health is 82 out 
 
 The demo is planned around a difficult invoice rather than a clean digital PDF.
 
-```mermaid
-flowchart LR
-    A["1. Upload a poor-quality invoice"] --> B["2. Two readers extract it"]
-    B --> C["3. Rules verify the result"]
-    C --> D["4. A suspicious field is detected"]
-    D --> E["5. The UI explains why"]
-    E --> F["6. Targeted re-read of the region"]
-    F --> G{"7. Enough evidence?"}
-    G -- "Yes" --> H["Verified"]
-    G -- "No" --> I["Human Review"]
+```text
+1. Upload a poor-quality invoice
+        |
+        v
+2. Two readers extract it independently
+        |
+        v
+3. Rules verify the result
+        |
+        v
+4. A suspicious field is detected
+        |
+        v
+5. The interface explains why
+        |
+        v
+6. Targeted re-read of that region
+        |
+        v
+7. Enough evidence?
+     |          |
+    Yes         No
+     |          |
+     v          v
+ Verified   Human Review
 ```
 
 The key moment in the demo is that the system does not invent a correction just to make the invoice pass. It recognizes when it does not have enough evidence.
@@ -576,16 +657,28 @@ For each invoice, VYOM+ is expected to produce the following.
 | Invoice Risk Radar report | Inconsistencies with evidence, where implemented |
 | Side-by-side review screen | Original invoice next to the extracted result |
 
-```mermaid
-flowchart TD
-    A["Messy Invoice"] --> B["AI Extraction"]
-    B --> C["Verification"]
-    C --> D["Evidence"]
-    D --> E["Risk Analysis"]
-    E --> F["Trusted"]
-    E --> G["Uncertain"]
-    F --> H["Accounting Flow"]
-    G --> I["Human Review"]
+```text
+Messy Invoice
+      |
+      v
+AI Extraction
+      |
+      v
+Verification
+      |
+      v
+Evidence
+      |
+      v
+Risk Analysis
+      |
+   +--+-----------+
+   |              |
+   v              v
+Trusted       Uncertain
+   |              |
+   v              v
+Accounting Flow  Human Review
 ```
 
 ---
