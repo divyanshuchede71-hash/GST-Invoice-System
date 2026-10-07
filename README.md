@@ -1,175 +1,123 @@
-# 1. Project Name
-
 # VYOM+
-## The AI Trust Layer for GST Invoices
 
-**Don't just read an invoice. Know whether you can trust it.**
+## 1. Project Name
 
-> **AI proposes. Rules verify. Evidence explains. Humans resolve only what remains uncertain.**
+**VYOM+: The AI Trust Layer for GST Invoices**
 
-**Team Phantom** | Hacktober Fest — Open Source AI Hackathon
+*Don't just read an invoice. Know whether you can trust it.*
+
+Team Phantom
+Aniruddha Chaudhary, Aryan Waghchoure, Divyanshu Chede, Yash Lohiya
+
+Built for the Hacktober Fest Open Source AI Hackathon.
 
 ---
- 
----
 
-# 2. Problem Statement
+## 2. Problem Statement
 
-Handwritten bills, phone photographs, and scanned GST invoices are easy to misread. A single incorrect GSTIN digit, tax amount, quantity, rate, or total can become an accounting error.
+Small businesses and accounting teams in India deal with GST invoices that arrive in every possible form: handwritten bills, photographs taken on a phone, scans of varying quality, and digital PDFs. Reading these correctly is harder than it looks. One wrong digit in a GSTIN, or a misread tax amount, quantity, or total, can turn into an accounting error that someone has to find and fix later.
 
-Traditional OCR answers one question:
-
-> "What text is visible?"
+Most existing tools approach this as an OCR problem. They answer a single question: what text is visible on the page?
 
 ```
-Invoice
-   ↓
- OCR
-   ↓
-Text
-   ↓
-Accounting System
+Invoice  ->  OCR  ->  Text  ->  Accounting System
 ```
 
-The problem is that **correctly reading text does not mean the financial record is correct.** A value can look perfectly readable and still produce an incorrect invoice total, tax calculation, or accounting entry.
+The trouble is that reading the text correctly does not mean the financial record is correct. A value can be perfectly legible and still lead to a wrong invoice total, a wrong tax calculation, or a wrong accounting entry. Traditional OCR returns values and leaves it to the user to decide whether they are right, which usually means rechecking every field by hand.
 
-The expensive part of invoice automation is not reading characters. It is dealing with the consequences of being wrong.
-
-| Traditional OCR | Gap |
-| --- | --- |
-| Reads text | Does not know if the text is right |
-| Returns values | Gives no reason to trust them |
-| Leaves correctness to the user | Manual rechecking of every field |
+The real cost of invoice automation is not in reading characters. It is in dealing with the consequences of being wrong.
 
 ---
 
-# 3. Project Overview
+## 3. Project Overview
 
-VYOM+ converts messy invoices into structured, accounting-ready data, then **verifies the extracted information before it reaches an accounting workflow.**
+VYOM+ turns messy invoices into structured, accounting-ready data, and then checks that data before it reaches any accounting workflow.
 
-Instead of asking *"Can we extract this document?"*, VYOM+ asks:
+Where a typical OCR tool asks "what does this invoice say?", VYOM+ asks a different question: which of the extracted values are actually safe to trust?
 
-> **"Which extracted values are actually safe to trust?"**
-
-### READ → VERIFY → RECOVER → EXPLAIN
+The system works in four stages:
 
 | Stage | What happens |
 | --- | --- |
-| **READ** | PaddleOCR and Qwen2.5-VL independently read the invoice. |
-| **VERIFY** | Their results are cross-checked against deterministic GST and arithmetic rules. |
-| **RECOVER** | When something fails, VYOM+ goes back to the relevant invoice region and performs a targeted re-read. |
-| **EXPLAIN** | Every important field receives a status — **Verified, Warning, or Needs Review** — with the reason and available evidence. |
+| Read | PaddleOCR and Qwen2.5-VL read the invoice independently of each other. |
+| Verify | Their outputs are cross-checked and then tested against deterministic GST and arithmetic rules. |
+| Recover | If a field fails, VYOM+ goes back to that part of the invoice and reads it again, focusing only on that region. |
+| Explain | Every important field gets a status of Verified, Warning, or Needs Review, along with the reason and the evidence behind it. |
 
-VYOM+ treats **uncertainty as a first-class output.** Instead of "I think this is correct," it says:
-
-- Here is the value.
-- Here is the evidence.
-- Here are the checks it passed.
-- Here is what remains uncertain.
+A core principle of the project is that uncertainty should be shown openly rather than hidden. Instead of saying "I think this is correct," VYOM+ tells the user the value, the evidence for it, the checks it passed, and what is still uncertain.
 
 ---
 
-# 4. Proposed Solution
+## 4. Proposed Solution
 
-VYOM+ is an evidence-backed trust layer that sits between messy financial documents and automated accounting.
+We propose a trust layer that sits between messy financial documents and automated accounting. It does not replace the OCR step. It builds on it by adding a second independent reader, a rule engine, a recovery step, and an evidence trail.
 
 ```
                          Invoice
-                            │
-              ┌─────────────┴─────────────┐
-              ↓                           ↓
-         PaddleOCR                  Vision Model
-              │                           │
-              └─────────────┬─────────────┘
-                            ↓
-                     Cross-Check
-                            ↓
-                 GST + Math Validation
-                            ↓
-                     Anything wrong?
-                      /             \
-                    No              Yes
-                    ↓                ↓
-                 VERIFY       Targeted Re-read
-                                      ↓
-                               Still uncertain?
-                                /           \
-                              No             Yes
-                              ↓               ↓
-                           VERIFY       HUMAN REVIEW
+                            |
+              +-------------+-------------+
+              |                           |
+          PaddleOCR                  Vision Model
+              |                           |
+              +-------------+-------------+
+                            |
+                       Cross-Check
+                            |
+                   GST + Math Validation
+                            |
+                      Anything wrong?
+                       /           \
+                     No            Yes
+                     |              |
+                  Verify     Targeted Re-read
+                                    |
+                            Still uncertain?
+                              /          \
+                            No           Yes
+                            |             |
+                         Verify      Human Review
 ```
 
-### Traditional OCR vs VYOM+
+The comparison with a traditional OCR pipeline looks like this:
 
 | Traditional OCR | VYOM+ |
 | --- | --- |
 | Reads text | Uses two independent readers |
-| Returns values | Cross-checks important values |
-| Leaves correctness to the user | Validates GST and arithmetic |
-| | Re-reads suspicious regions |
-| | Shows evidence behind important decisions |
-| | Escalates only unresolved fields to a human |
+| Returns values | Cross-checks the important ones |
+| Leaves correctness to the user | Validates GST rules and arithmetic |
+| No recovery | Re-reads suspicious regions |
+| No explanation | Shows the evidence behind each decision |
+| Everything goes to a human, or nothing does | Only unresolved fields go to a human |
 
-**Traditional OCR extracts. VYOM+ verifies.**
+### What makes the approach different
 
-### What Makes VYOM+ Different
+**Two readers, one verdict.** PaddleOCR provides text recognition and spatial coordinates. Qwen2.5-VL provides visual understanding, layout awareness, handwriting reading, and field extraction. The first reading from each is fully independent. When they disagree on an important field, we treat that disagreement as a risk signal.
 
-#### 1. Two Readers, One Verdict
+**Rules verify what the AI reads.** The AI is used only for perception. Whether the extracted information is consistent is decided by deterministic rules. These cover GSTIN structure, state code, check digit, and the PAN pattern inside the GSTIN, as well as quantity times rate, tax calculations, CGST and SGST consistency, IGST consistency where applicable, line-item totals, invoice total reconciliation, and date validity. In short, the model reads and the rule engine verifies.
 
-- **PaddleOCR**: text recognition and spatial coordinates
-- **Qwen2.5-VL**: visual understanding, layout, handwriting, and field extraction
-
-The first reading from each system is independent. If they disagree on an important field, that disagreement becomes a risk signal.
-
-#### 2. Rules Verify What AI Reads
-
-AI is used for perception. Deterministic rules decide whether the extracted information is internally consistent. VYOM+ checks:
-
-- GSTIN structure
-- GSTIN state code
-- GSTIN check digit
-- PAN pattern inside GSTIN
-- Quantity × rate
-- Tax calculations
-- CGST / SGST consistency
-- IGST consistency where applicable
-- Line-item totals
-- Invoice total reconciliation
-- Date validity
-
-*The model reads. The rule engine verifies.*
-
-#### 3. Progressive Verification
-
-VYOM+ does not immediately send every uncertain field to a human.
+**Progressive verification.** We do not send every uncertain field straight to a human. When a field fails validation, the system finds the relevant region, crops it, reads it again, and validates the result. Only if the field still fails does it go to human review. This keeps human involvement selective.
 
 ```
 AI reads invoice
-      ↓
+      |
 Validation fails
-      ↓
+      |
 Find relevant invoice region
-      ↓
+      |
 Crop the region
-      ↓
+      |
 Targeted re-read
-      ↓
+      |
 Validate again
-      ↓
-       ┌───────────────┐
-       │               │
-     Pass            Still fail
-       ↓               ↓
-    Verify        Human Review
+      |
+  +---+-----------+
+  |               |
+ Pass          Still fails
+  |               |
+Verify       Human Review
 ```
 
-This keeps human involvement selective rather than constant. *The system knows when it doesn't know.*
-
-#### 4. Evidence Graph
-
-VYOM+ does not only return a value. It can preserve the evidence behind the decision.
-
-Instead of:
+**Evidence graph.** VYOM+ does not just return a value. It can keep the evidence behind each decision. A plain extractor would return something like this:
 
 ```json
 {
@@ -178,7 +126,7 @@ Instead of:
 }
 ```
 
-VYOM+ can represent:
+VYOM+ can instead represent the same field along with its proof:
 
 ```json
 {
@@ -196,420 +144,279 @@ VYOM+ can represent:
 }
 ```
 
-In the interface:
+In the interface, this appears as a short explanation next to each field:
 
 ```
-GSTIN
-27ABCDE1234F1Z5
+GSTIN: 27ABCDE1234F1Z5
+Status: Verified
+  - OCR and vision readings agree
+  - GSTIN check digit is valid
+  - State code is valid
 
-VERIFIED
-
-✓ OCR and Vision agree
-✓ GSTIN check digit valid
-✓ State code valid
-
-TOTAL
-₹12,480
-
-NEEDS REVIEW
-✗ Calculated total: ₹12,380
-✗ Invoice total:     ₹12,480
-⚠ Difference:        ₹100
+Total: Rs. 12,480
+Status: Needs Review
+  - Calculated total:  Rs. 12,380
+  - Invoice total:     Rs. 12,480
+  - Difference:        Rs. 100
 ```
 
-The evidence chain:
+The chain of evidence runs from the invoice region, to the extracted value, to the independent reading, to validation, and finally to the decision. The user is not asked to trust the AI blindly. They can see why a value was trusted, or why it was not.
+
+**Invoice health.** Rather than showing an unexplained confidence number, VYOM+ can produce an Invoice Health report built from signals we can actually measure: agreement between the readers, GST validation, arithmetic validation, agreement after re-reading, document quality, and supplier history where it is available. The score is meant to explain the result, not to be an AI guess.
 
 ```
-Invoice Region
-      ↓
-Extracted Value
-      ↓
-Independent Reading
-      ↓
-Validation
-      ↓
-Decision
+VYOM+ INVOICE HEALTH: 82 / 100
+
+Extraction Reliability    9/10
+GST Validation            10/10
+Arithmetic Consistency    8/10
+Cross-Reader Agreement    9/10
+Document Quality          6/10
+
+2 fields need review.
+
+Why:
+  - GSTIN is structurally valid
+  - Both readers agree on the GSTIN
+  - Tax structure is consistent
+  - The invoice image is blurry
+  - The total does not reconcile
 ```
 
-VYOM+ doesn't ask users to blindly trust the AI. It shows them why a value was trusted, or why it wasn't.
+**Invoice risk radar.** VYOM+ can point out inconsistencies on an invoice that deserve a closer look. It does not claim to prove fraud. It surfaces signals such as tax calculation mismatches, line items that do not add up to the total, an unexpected tax structure, unusual discounts, duplicate invoice numbers, and deviations from a supplier's usual pattern, always with the evidence attached.
 
-#### 5. Invoice Health
-
-Instead of an unexplained AI confidence score, VYOM+ can produce an **Invoice Health** report from measurable verification signals.
+**Invoice DNA.** For suppliers who send invoices repeatedly, VYOM+ can build a lightweight profile from earlier verified invoices. When a new invoice arrives, it is compared against that profile, covering things like the GSTIN, the layout, the tax pattern, and the invoice number format. A change in pattern does not prove anything, but it gives useful context about which invoices deserve closer inspection.
 
 ```
-┌──────────────────────────────────────┐
-│          VYOM+ INVOICE HEALTH        │
-│                                      │
-│              82 / 100                │
-│                                      │
-│  Extraction Reliability   █████████░ │
-│  GST Validation           ██████████ │
-│  Arithmetic Consistency   ████████░░ │
-│  Cross-Reader Agreement   █████████░ │
-│  Document Quality         ██████░░░░ │
-│                                      │
-│  ⚠ 2 fields need review              │
-└──────────────────────────────────────┘
-```
-
-**Why?**
-
-```
-✓ GSTIN is structurally valid
-✓ Readers agree on GSTIN
-✓ Tax structure is consistent
-
-⚠ Invoice image is blurry
-⚠ Total does not reconcile
-```
-
-Signals used: reader agreement, GST validation, arithmetic validation, re-read agreement, document quality, and historical supplier consistency where available.
-
-The score is an **explanation layer**, not an AI-generated guess.
-
-#### 6. Invoice Risk Radar
-
-VYOM+ can surface invoice inconsistencies that deserve investigation. **It does not claim to prove fraud.**
-
-```
-┌──────────────────────────────────────┐
-│          INVOICE RISK RADAR          │
-│                                      │
-│              78 / 100              │
-│                                      │
-│   Total does not reconcile          │
-│    Expected: ₹12,380                 │
-│    Invoice:  ₹12,480                 │
-│                                      │
-│ ⚠ Tax structure is inconsistent     │
-│                                      │
-│ ⚠ Unusual discount detected          │
-│                                      │
-│ ✓ GSTIN is structurally valid        │
-│                                      │
-│ ⚠ Possible duplicate invoice number  │
-└──────────────────────────────────────┘
-```
-
-Potential risk signals:
-
-- GSTIN and invoice information inconsistencies
-- Tax calculation mismatches
-- Line-item and total mismatches
-- Unexpected tax structure
-- Unusual discounts
-- Duplicate invoice numbers
-- Supplier-pattern deviations
-
-*VYOM+ doesn't accuse. It surfaces risk with evidence.*
-
-#### 7. Invoice DNA
-
-For repeat suppliers, VYOM+ can build a lightweight **Invoice DNA** from previously verified invoices.
-
-```
-             INVOICE DNA
-
-Supplier Identity       ██████████
-Layout Pattern          █████████░
-Tax Pattern             ██████████
-Document Quality        ███████░░░
-Extraction Reliability  █████████░
-```
-
-When another invoice from the same supplier arrives:
-
-```
-SUPPLIER PATTERN MATCH: 94%
-
-✓ Same GSTIN
-✓ Similar invoice layout
-✓ Similar tax structure
-
-⚠ Invoice number pattern changed
-⚠ Total is unusually high
-```
-
-This does not prove fraud. It provides historical context that helps identify invoices that deserve closer inspection.
-
-```
-Verified Invoices
-       ↓
-Supplier Profile
-       ↓
-Historical Patterns
-       ↓
-New Invoice
-       ↓
-Pattern Comparison
-       ↓
-Normal / Unusual
+Verified invoices -> Supplier profile -> Historical patterns
+        -> New invoice -> Pattern comparison -> Normal / Unusual
 ```
 
 ---
 
-# 5. Objectives
+## 5. Objectives
 
-1. **Extract** structured, accounting-ready data from handwritten, photographed, scanned, and digital GST invoices.
-2. **Verify** every important field using two independent readers and deterministic GST and arithmetic rules.
-3. **Recover** failed fields through targeted re-reading of the relevant invoice region.
-4. **Explain** each decision with a clear status, reason, and supporting evidence.
-5. **Escalate selectively**, sending only unresolved fields to a human reviewer.
-6. **Protect privacy** by running locally by default, so sensitive invoice data stays on the user's machine.
-7. **Measure trust**, not just accuracy: when VYOM+ says "Verified," how often is the field actually correct?
+1. Extract structured, accounting-ready data from handwritten, photographed, scanned, and digital GST invoices.
+2. Verify every important field using two independent readers and deterministic GST and arithmetic rules.
+3. Recover from failed validations by re-reading only the relevant region of the invoice.
+4. Explain each decision with a clear status, a reason, and the available evidence.
+5. Involve humans only where it is needed, by escalating just the fields that remain uncertain.
+6. Keep invoice data private by running locally by default.
+7. Measure trust, not only accuracy. When VYOM+ marks a field as Verified, we want to know how often that field is actually correct.
 
-### The Three Possible Outcomes
-
-Every important field ends in one of three states.
+Every important field ends in one of three states:
 
 | Status | Meaning |
 | --- | --- |
-|   **Verified** | Passed applicable validation and reader agreement |
-|  **Warning** | Passed hard checks but contains an uncertainty or anomaly |
-|   **Needs Review** | Could not be established reliably after recovery |
+| Verified | Passed the applicable validation and reader agreement. |
+| Warning | Passed the hard checks, but contains an uncertainty or anomaly. |
+| Needs Review | Could not be established reliably, even after recovery. |
 
-This prevents the system from silently converting uncertainty into false certainty.
+This stops the system from quietly turning uncertainty into false certainty.
 
 ---
 
-# 6. Target Users / Use Case
+## 6. Target Users / Use Case
 
-| User | Need |
-| --- | --- |
-| **Small Businesses** | Receive supplier invoices as photos, scans, or handwritten documents. |
-| **Accountants** | Need structured data without manually rechecking every field. |
-| **CA Firms** | Process invoices from multiple businesses and need faster review. |
-| **Finance Teams** | Need reliable structured invoice data before it enters downstream accounting workflows. |
+**Small businesses** often receive supplier invoices as photos, scans, or handwritten documents and have no easy way to check them.
 
-### Supported Inputs
+**Accountants** need structured data without having to recheck every field manually.
+
+**CA firms** process invoices from many clients and need faster, more focused review.
+
+**Finance teams** need reliable structured invoice data before it enters downstream accounting workflows.
+
+### Supported inputs
 
 - Handwritten invoices
 - Phone photographs
 - Scanned invoices
 - Digital PDFs
-- JPG
-- PNG
+- JPG and PNG images
 - Spreadsheet-based invoice data
 
-The main focus is **messy GST invoice verification**, not simply supporting as many file extensions as possible.
+Our focus is on messy GST invoice verification rather than on supporting as many file types as possible.
 
-### Primary Use Case
+### Typical use case
 
-A small business receives a blurry phone photo of a handwritten supplier invoice. VYOM+ reads it, verifies the GSTIN and tax math, flags the one total that does not reconcile, shows exactly why, and lets the accountant fix only that field.
+A small business receives a blurry phone photo of a handwritten supplier invoice. VYOM+ reads it with two independent readers, checks the GSTIN and the tax arithmetic, and notices that the total does not match the sum of the line items. It shows exactly why, tries a targeted re-read of the total, and if the problem remains, hands only that field to the accountant to correct. The rest of the invoice does not need to be rechecked.
 
 ---
 
-# 7. Open-Source AI Technology Selected
+## 7. Open-Source AI Technology Selected
 
-| Technology | Role |
+| Technology | Role in VYOM+ |
 | --- | --- |
-| **PaddleOCR** | Open-source OCR for text recognition and spatial coordinates |
-| **Qwen2.5-VL** | Open-source vision-language model for visual understanding, layout, handwriting, and field extraction |
-| **Ollama** | Open-source local runtime for running Qwen2.5-VL on the user's machine |
+| PaddleOCR | Open-source OCR engine for text recognition and spatial coordinates |
+| Qwen2.5-VL | Open-source vision-language model for layout understanding, handwriting, and field extraction |
+| Ollama | Open-source runtime used to run Qwen2.5-VL locally |
 
 ---
 
-# 8. Why This Technology Was Selected
+## 8. Why This Technology Was Selected
 
-**PaddleOCR**
-- Returns text together with bounding-box coordinates, which is essential for the Evidence Graph and for cropping regions during targeted re-reads.
-- Works as a reader that is architecturally independent from the vision model.
+**PaddleOCR** returns text together with bounding-box coordinates. This matters for two reasons: the coordinates let us crop the exact region of an invoice for a targeted re-read, and they let us point to the evidence for a value in the interface. It also works as a reader that is genuinely separate from the vision model.
 
-**Qwen2.5-VL**
-- Understands layout, handwriting, and document structure, which plain OCR struggles with.
-- Can extract named fields directly from the image.
-- Open-source and runnable locally.
+**Qwen2.5-VL** understands the page as a whole, not only as lines of text. It copes better with layout, handwriting, and the structure of an invoice, and it can extract named fields directly from the image. It is open source and can be run on a local machine.
 
-**Ollama**
-- Makes local model execution simple, which supports the privacy-first design.
-- Keeps invoice data on the user's machine by default.
+**Ollama** makes it simple to run the vision model locally, which supports our privacy-first approach.
 
-**Two independent readers**
-- The two systems fail differently, so disagreement between them is a meaningful risk signal that a single model cannot provide.
+**Using two readers** is a deliberate choice. Two different systems tend to fail in different ways, so disagreement between them tells us something that a single model cannot.
 
-**Open-source and local-first**
-- Invoices contain sensitive business information. Local processing removes the need to send them to a third-party service.
+**Staying open source and local-first** matters because invoices contain sensitive business information. Running locally means that information does not need to be sent to an outside service.
 
 ---
 
-# 9. AI's Role in the System
+## 9. AI's Role in the System
 
-AI is used for **perception**. It is not trusted to decide what is correct.
+In VYOM+, AI is used for perception, not for judgment. It reads the invoice, but it is not trusted to decide whether what it read is correct.
 
-| Responsibility | Owner |
+| Responsibility | Handled by |
 | --- | --- |
 | Reading text and coordinates | PaddleOCR |
-| Understanding layout, handwriting, fields | Qwen2.5-VL |
-| Targeted re-read of a cropped region | Qwen2.5-VL / PaddleOCR |
-| GST and arithmetic correctness | Deterministic rule engine |
-| Final status per field | Cross-check + rule engine |
-| Unresolved decisions | Human reviewer |
+| Understanding layout, handwriting, and fields | Qwen2.5-VL |
+| Re-reading a cropped region | Qwen2.5-VL and PaddleOCR |
+| Checking GST and arithmetic correctness | Deterministic rule engine |
+| Deciding the status of each field | Cross-check together with the rule engine |
+| Resolving what remains uncertain | A human reviewer |
 
-The model reads. The rule engine verifies. The system **never invents a correction** just to make an invoice pass.
-
----
-
-# 10. System Architecture
-
-```
-                    INVOICE
-                       │
-                       ↓
-                 File Detection
-                       │
-          ┌────────────┴────────────┐
-          ↓                         ↓
-   Structured Input          PDF / Image Input
-          │                         │
-          │                  Image Preparation
-          │                         │
-          │             ┌───────────┴───────────┐
-          │             ↓                       ↓
-          │        PaddleOCR              Qwen2.5-VL
-          │             │                       │
-          │             └───────────┬───────────┘
-          │                         ↓
-          └──────────────────→ Cross-Check
-                                  ↓
-                         GST + Math Validation
-                                  ↓
-                           Failed Field?
-                            /          \
-                          No            Yes
-                          ↓              ↓
-                       Verify      Targeted Re-read
-                                         ↓
-                                  Validate Again
-                                         ↓
-                                  /             \
-                               Pass             Fail
-                                ↓                ↓
-                             Verify        Human Review
-                                │                │
-                                └───────┬────────┘
-                                        ↓
-                              Evidence + Risk Report
-                                        ↓
-                              JSON / CSV / UI Result
-```
-
-### Privacy-First Architecture
-
-The default architecture keeps invoice data on the user's machine and runs the vision model through Ollama.
-
-```
-Invoice
-   ↓
-Local Processing
-   ├── OCR
-   ├── Vision Model
-   ├── Validation
-   └── Evidence
-   ↓
-Local Result
-```
-
-Cloud GPU execution may be used as an **optional development/demo configuration** and is not required by the core architecture.
+The system never invents a correction just to make an invoice pass. If the evidence is not enough, it says so.
 
 ---
 
-# 11. Component-Level Architecture
+## 10. System Architecture
 
-| Component | Responsibility |
+The overall flow, from upload to final output, is shown below.
+
+```
+                         INVOICE
+                            |
+                      File Detection
+                            |
+              +-------------+-------------+
+              |                           |
+       Structured Input           PDF / Image Input
+              |                           |
+              |                   Image Preparation
+              |                           |
+              |               +-----------+-----------+
+              |               |                       |
+              |           PaddleOCR              Qwen2.5-VL
+              |               |                       |
+              |               +-----------+-----------+
+              |                           |
+              +-------------------->  Cross-Check
+                                          |
+                                 GST + Math Validation
+                                          |
+                                    Failed field?
+                                     /         \
+                                   No          Yes
+                                   |            |
+                                Verify    Targeted Re-read
+                                                |
+                                         Validate again
+                                                |
+                                          /           \
+                                       Pass           Fail
+                                        |               |
+                                     Verify       Human Review
+                                        |               |
+                                        +-------+-------+
+                                                |
+                                     Evidence + Risk Report
+                                                |
+                                       JSON / CSV / UI Result
+```
+
+### Privacy-first design
+
+By default, everything runs on the user's own machine: OCR, the vision model (through Ollama), validation, and evidence generation. The invoice does not leave the machine.
+
+```
+Invoice -> Local processing (OCR, Vision Model, Validation, Evidence) -> Local result
+```
+
+Running on a cloud GPU is an optional configuration that we may use for development and demos. It is not required by the core architecture.
+
+---
+
+## 11. Component-Level Architecture
+
+| Component | What it does |
 | --- | --- |
-| **File Router** | Detects the input type (structured data vs. PDF/image) and routes it. |
-| **Image Preparation** | Renders PDF pages, then pre-processes images (e.g., deskew, denoise) with OpenCV / pypdfium2. |
-| **OCR Reader** | PaddleOCR extracts text and bounding boxes. |
-| **Vision Reader** | Qwen2.5-VL (via Ollama) extracts fields, layout, and handwriting. |
-| **Cross-Checker** | Compares both readings field by field; disagreement becomes a risk signal. |
-| **GST Validator** | GSTIN structure, state code, check digit, PAN pattern, date validity. |
-| **Math Validator** | Quantity × rate, line totals, CGST / SGST / IGST consistency, total reconciliation. |
-| **Recovery Engine** | Locates the relevant region, crops it, and runs a targeted re-read. |
-| **Status Engine** | Assigns Verified / Warning / Needs Review to each field. |
-| **Evidence Builder** | Records page, region, both readings, and validation results per field. |
-| **Health and Risk Reporter** | Produces Invoice Health and Invoice Risk Radar from measurable signals. |
-| **Output Layer** | Writes JSON / CSV and serves the Streamlit review UI. |
+| File router | Detects the input type (structured data, or PDF/image) and sends it down the right path. |
+| Image preparation | Renders PDF pages and pre-processes images using OpenCV and pypdfium2. |
+| OCR reader | Uses PaddleOCR to extract text and bounding boxes. |
+| Vision reader | Uses Qwen2.5-VL through Ollama to extract fields, layout, and handwriting. |
+| Cross-checker | Compares the two readings field by field. A disagreement is recorded as a risk signal. |
+| GST validator | Checks GSTIN structure, state code, check digit, the PAN pattern, and date validity. |
+| Math validator | Checks quantity times rate, line totals, CGST, SGST, and IGST consistency, and total reconciliation. |
+| Recovery engine | Finds the relevant region, crops it, and runs a targeted re-read. |
+| Status engine | Assigns Verified, Warning, or Needs Review to each field. |
+| Evidence builder | Records the page, region, both readings, and the validation results for each field. |
+| Health and risk reporter | Builds the Invoice Health and Invoice Risk Radar reports from measurable signals. |
+| Output layer | Produces JSON and CSV results and the Streamlit review interface. |
 
 ---
 
-# 12. Data / Information Flow
+## 12. Data / Information Flow
 
-1. **Upload**: the user uploads an invoice (image, PDF, or spreadsheet).
-2. **Detect**: the file type is identified and routed.
-3. **Prepare**: PDFs are rendered to images; images are pre-processed.
-4. **Read**: PaddleOCR and Qwen2.5-VL each extract the invoice independently.
-5. **Cross-check**: results are compared field by field.
-6. **Validate**: GST and arithmetic rules run on the merged result.
-7. **Recover**: failed fields are cropped and re-read, then validated again.
-8. **Decide**: each field becomes Verified, Warning, or Needs Review.
-9. **Explain**: evidence, health, and risk reports are generated.
-10. **Output**: structured JSON / CSV and a side-by-side review UI.
+1. **Upload.** The user uploads an invoice as an image, a PDF, or a spreadsheet.
+2. **Detection.** The file type is identified and the file is routed accordingly.
+3. **Preparation.** PDFs are rendered to images, and images are pre-processed.
+4. **Reading.** PaddleOCR and Qwen2.5-VL each extract the invoice on their own.
+5. **Cross-check.** The two results are compared field by field.
+6. **Validation.** GST and arithmetic rules are applied to the combined result.
+7. **Recovery.** Fields that failed are cropped and re-read, then validated again.
+8. **Decision.** Each field is marked Verified, Warning, or Needs Review.
+9. **Explanation.** Evidence, health, and risk reports are generated.
+10. **Output.** The result is available as JSON, CSV, and a side-by-side review screen.
 
 ```
-Image / PDF  →  Readers  →  Cross-Check  →  Rules  →  Recovery  →  Status  →  Evidence  →  JSON / CSV / UI
+Image / PDF -> Readers -> Cross-Check -> Rules -> Recovery -> Status -> Evidence -> JSON / CSV / UI
 ```
 
 ---
 
-# 13. Agentic Workflow
+## 13. Agentic Workflow
 
-VYOM+ uses a bounded, rule-guided loop rather than free-form autonomy.
+VYOM+ includes a small, controlled loop that behaves in an agent-like way, but it is deliberately bounded. It is guided by the rule engine rather than left to act freely.
 
-```
-AI reads invoice
-      ↓
-Validation fails
-      ↓
-Find relevant invoice region
-      ↓
-Crop the region
-      ↓
-Targeted re-read
-      ↓
-Validate again
-      ↓
-Pass → Verified      Still fail → Human Review
-```
-
-| Step | Agent behavior |
+| Step | What the system does |
 | --- | --- |
-| **Perceive** | Two readers extract the invoice. |
-| **Check** | The rule engine detects which field failed. |
-| **Act** | The system picks the relevant region and re-reads it. |
-| **Re-check** | The same rules validate the new reading. |
-| **Stop** | If evidence is still insufficient, it stops and asks a human. |
+| Perceive | Two readers extract the invoice. |
+| Check | The rule engine identifies which field failed. |
+| Act | The system picks the relevant region of the invoice and re-reads it. |
+| Re-check | The same rules validate the new reading. |
+| Stop | If the evidence is still not sufficient, the system stops and asks a human. |
 
-**The key behavior:** the system does not guess or fabricate a fix. *A safe system knows when to stop.*
+The important part is the last step. The system does not guess and does not make up a fix. It knows when to stop.
 
 ---
 
-# 14. Technology Stack
+## 14. Technology Stack
 
 | Component | Technology | Purpose |
 | --- | --- | --- |
 | Language | Python | Core application |
 | Interface | Streamlit | Interactive invoice review |
-| OCR | PaddleOCR | Text + coordinates |
-| Vision | Qwen2.5-VL | Layout, handwriting, field extraction |
-| Local Runtime | Ollama | Local model execution |
-| Image Processing | OpenCV | Pre-processing |
-| PDF Processing | pdfplumber / pypdfium2 | PDF extraction and rendering |
-| Data | pandas | Structured data handling |
-| Validation | Python rules | GST + arithmetic verification |
-| Output | JSON / CSV | Structured results |
+| OCR | PaddleOCR | Text and coordinates |
+| Vision | Qwen2.5-VL | Layout, handwriting, and field extraction |
+| Local runtime | Ollama | Running models locally |
+| Image processing | OpenCV | Pre-processing |
+| PDF processing | pdfplumber, pypdfium2 | PDF extraction and rendering |
+| Data handling | pandas | Structured data |
+| Validation | Python rules | GST and arithmetic verification |
+| Output | JSON, CSV | Structured results |
 
-### Trust Layer
-
-The core differentiator is not a single model. It is the combination of:
-
-**OCR + Vision + Cross-Check + Rules + Recovery + Evidence**
+The main strength of the project is not any single model. It is the combination of OCR, vision, cross-checking, rules, recovery, and evidence working together.
 
 ---
 
-# 15. Expected Features
+## 15. Expected Features
 
-### Core
+**Core features**
 
 - Invoice upload
 - File-type routing
@@ -619,12 +426,12 @@ The core differentiator is not a single model. It is the combination of:
 - GST validation
 - Arithmetic validation
 - Targeted field re-reading
-- Field-level status (Verified / Warning / Needs Review)
+- Field-level status
 - Structured JSON output
 - CSV output
-- Side-by-side invoice/result review
+- Side-by-side invoice and result review
 
-### Advanced
+**Additional features**
 
 - Evidence Graph
 - Invoice Health
@@ -632,157 +439,126 @@ The core differentiator is not a single model. It is the combination of:
 - Benchmarking
 - Invoice DNA
 
-> **Implementation status:** Advanced features are marked according to their **actual implementation status at submission.**
->
-> | Feature | Status |
-> | --- | --- |
-> | Evidence Graph | _To be updated at submission_ |
-> | Invoice Health | _To be updated at submission_ |
-> | Invoice Risk Radar | _To be updated at submission_ |
-> | Benchmarking | _To be updated at submission_ |
-> | Invoice DNA | _To be updated at submission_ |
+The status of the additional features will be marked according to what is actually implemented at the time of submission.
 
-### Example Result
-
-A messy handwritten invoice might produce:
-
-```
-┌─────────────────────────────────────────────┐
-│                 VYOM+ RESULT                │
-├─────────────────────────────────────────────┤
-│                                             │
-│ Invoice No.       INV-0231                │
-│ Date              14/09/2026              │
-│ Seller GSTIN      27ABCDE...              │
-│ Buyer GSTIN       27XYZ...                │
-│                                             │
-│ Item Amount       ₹10,000                 │
-│ CGST              ₹900                   │
-│ SGST              ₹900                  │
-│                                             │
-│ Total             ₹11,800                 │
-│                                             │
-│ ⚠ Total does not reconcile by ₹100         │
-│                                             │
-│        INVOICE HEALTH: 82/100               │
-│        RISK LEVEL: HIGH                     │
-│                                             │
-└─────────────────────────────────────────────┘
-```
-
-The user can inspect the original invoice, view the evidence, trigger a targeted re-read, or correct the unresolved field.
-
----
-
-# 16. Implementation Approach
-
-1. **Input layer**: Streamlit upload with file-type detection and routing.
-2. **Preparation**: render PDFs with pypdfium2 / pdfplumber; pre-process images with OpenCV.
-3. **Dual extraction**: run PaddleOCR and Qwen2.5-VL (through Ollama) independently on the same invoice.
-4. **Cross-check**: normalize both outputs into a common schema and compare field by field.
-5. **Rule engine**: implement GST and arithmetic validators in plain Python.
-6. **Recovery loop**: on failure, use PaddleOCR coordinates to crop the region, re-read it, and re-validate.
-7. **Status and evidence**: assign field status and attach evidence (page, region, both readings, checks).
-8. **Reporting**: compute Invoice Health and Risk Radar from measurable signals.
-9. **Output and UI**: export JSON / CSV and show a side-by-side invoice and result view in Streamlit.
-10. **Benchmark**: evaluate on a manually verified test set.
-
-### Demo Flow
-
-The demo is built around a difficult invoice, not a perfect digital PDF.
-
-| Step | Action |
+| Feature | Implementation status |
 | --- | --- |
-| **1. Upload** | Upload a handwritten or poor-quality invoice. |
-| **2. Read** | Two reading systems independently extract the invoice. |
-| **3. Verify** | GST and arithmetic rules validate the result. |
-| **4. Detect** | A suspicious field is identified. |
-| **5. Explain** | The UI shows exactly why the field is suspicious. |
-| **6. Recover** | VYOM+ re-reads only the relevant region. |
-| **7. Decide** | Enough evidence → **Verified**. Uncertainty remains → **Human Review**. |
+| Evidence Graph | To be updated at submission |
+| Invoice Health | To be updated at submission |
+| Invoice Risk Radar | To be updated at submission |
+| Benchmarking | To be updated at submission |
+| Invoice DNA | To be updated at submission |
 
-### Benchmark Plan
+### Example result
 
-VYOM+ is evaluated against a manually verified test set containing:
-
-- Clean printed invoices
-- Digital PDFs
-- Poor photographs
-- Skewed images
-- Blurred images
-- Handwritten invoices
-
-Each field is compared against ground truth.
-
-| Metric | Question it answers |
-| --- | --- |
-| **Field Accuracy** | How often are extracted values correct? |
-| **Trust Accuracy** | When VYOM+ says a field is Verified, how often is it actually correct? |
-| **Human Review Rate** | What percentage of fields require human attention? |
-| **Recovery Rate** | How often does targeted re-reading resolve an initially failed field? |
-| **Processing Time** | How long does the system take per invoice? |
-
-These metrics show not just whether VYOM+ can read invoices, but whether it can **safely automate invoice verification.**
-
----
-
-# 17. Expected Final Output
-
-For every invoice, VYOM+ produces:
-
-- **Structured JSON** with each field's value, status, and evidence
-- **CSV** of accounting-ready data
-- **Field-level status**:  Verified,  Warning,  Needs Review
-- **Evidence** per important field (region, both readings, validation results)
-- **Invoice Health** report *(where implemented)*
-- **Invoice Risk Radar** report *(where implemented)*
-- **Side-by-side review UI** showing the original invoice next to the extracted result
+For a messy handwritten invoice, the output might look like this:
 
 ```
-MESSY INVOICE
-      ↓
-AI EXTRACTION
-      ↓
-VERIFICATION
-      ↓
-EVIDENCE
-      ↓
-RISK ANALYSIS
-      ↓
-┌────────┴────────┐
-↓                 ↓
-TRUSTED        UNCERTAIN
-↓                 ↓
-ACCOUNTING     HUMAN
-FLOW           REVIEW
+VYOM+ RESULT
+
+Invoice No.      INV-0231        Verified
+Date             14/09/2026      Verified
+Seller GSTIN     27ABCDE...      Verified
+Buyer GSTIN      27XYZ...        Verified
+
+Item Amount      Rs. 10,000      Verified
+CGST             Rs. 900         Verified
+SGST             Rs. 900         Verified
+
+Total            Rs. 11,800      Needs Review
+  The total does not reconcile. It is off by Rs. 100.
+
+Invoice Health:  82 / 100
+Risk Level:      High
+```
+
+From here, the user can look at the original invoice, view the evidence, trigger a targeted re-read, or correct the unresolved field directly.
+
+---
+
+## 16. Implementation Approach
+
+1. **Input layer.** A Streamlit upload screen with file-type detection and routing.
+2. **Preparation.** PDFs are rendered with pypdfium2 and pdfplumber, and images are pre-processed with OpenCV.
+3. **Dual extraction.** PaddleOCR and Qwen2.5-VL (through Ollama) read the same invoice independently.
+4. **Cross-check.** Both outputs are converted to a common schema and compared field by field.
+5. **Rule engine.** GST and arithmetic validators are written in plain Python.
+6. **Recovery loop.** When a field fails, the PaddleOCR coordinates are used to crop the region, which is then re-read and validated again.
+7. **Status and evidence.** Each field gets a status, with the page, region, both readings, and the checks attached.
+8. **Reporting.** Invoice Health and Risk Radar are computed from measurable signals.
+9. **Output and interface.** Results are exported as JSON and CSV, and shown side by side with the invoice in Streamlit.
+10. **Benchmarking.** The system is evaluated on a manually verified test set.
+
+### Demo flow
+
+The demo is built around a difficult invoice rather than a clean digital PDF.
+
+1. **Upload** a handwritten or poor-quality invoice.
+2. **Read.** Two systems extract the invoice independently.
+3. **Verify.** GST and arithmetic rules check the result.
+4. **Detect.** A suspicious field is identified.
+5. **Explain.** The interface shows exactly why the field looks suspicious.
+6. **Recover.** VYOM+ re-reads only the relevant region.
+7. **Decide.** If the evidence is enough, the field becomes Verified. If doubt remains, it goes to Human Review.
+
+The key moment in the demo is that the system does not invent a correction just to make the invoice pass. It recognizes when it does not have enough evidence.
+
+### Benchmark plan
+
+VYOM+ will be evaluated against a manually verified test set that includes clean printed invoices, digital PDFs, poor photographs, skewed images, blurred images, and handwritten invoices. Each extracted field is compared against ground truth.
+
+| Metric | What it tells us |
+| --- | --- |
+| Field accuracy | How often the extracted values are correct. |
+| Trust accuracy | When VYOM+ says a field is Verified, how often it is actually correct. |
+| Human review rate | The share of fields that need human attention. |
+| Recovery rate | How often a targeted re-read fixes a field that initially failed. |
+| Processing time | How long one invoice takes. |
+
+Together, these show not only whether VYOM+ can read invoices, but whether it can do so safely.
+
+---
+
+## 17. Expected Final Output
+
+For each invoice, VYOM+ is expected to produce:
+
+- Structured JSON containing each field's value, status, and evidence
+- A CSV file with accounting-ready data
+- A field-level status of Verified, Warning, or Needs Review
+- Evidence for each important field, including the region, both readings, and the validation results
+- An Invoice Health report, where implemented
+- An Invoice Risk Radar report, where implemented
+- A side-by-side review screen showing the original invoice next to the extracted result
+
+```
+Messy invoice -> AI extraction -> Verification -> Evidence -> Risk analysis
+                                                                  |
+                                                    +-------------+-------------+
+                                                    |                           |
+                                                 Trusted                    Uncertain
+                                                    |                           |
+                                            Accounting flow               Human review
 ```
 
 ---
 
-# 18. Future Scope / Scalability
+## 18. Future Scope / Scalability
 
-| Direction | Description |
-| --- | --- |
-| **Supplier Intelligence** | Build historical supplier profiles from verified invoices (Invoice DNA). |
-| **Accounting Integration** | Send verified structured data into accounting workflows. |
-| **Batch Processing** | Process large invoice collections with selective review. |
-| **Multilingual Handwriting** | Improve support for regional Indian languages. |
-| **Learning From Corrections** | Use reviewer corrections to improve repeat-supplier extraction. |
-| **Related Documents** | Extend the trust layer to credit notes, purchase orders, and other financial documents. |
+- **Supplier intelligence.** Build historical profiles of suppliers from verified invoices, extending the Invoice DNA idea.
+- **Accounting integration.** Send verified structured data directly into accounting workflows.
+- **Batch processing.** Handle large collections of invoices, with review limited to the fields that need it.
+- **Multilingual handwriting.** Improve support for regional Indian languages.
+- **Learning from corrections.** Use reviewer corrections to improve extraction for repeat suppliers.
+- **Related documents.** Extend the trust layer to credit notes, purchase orders, and other financial documents.
 
-### The Bigger Vision
-
-Today's invoice automation asks: *"Can we extract this document?"*
-
-VYOM+ asks: **"Can we safely trust what we extracted?"**
-
-The long-term goal is not another OCR engine. It is an evidence-backed trust layer between messy financial documents and automated accounting. Over time, VYOM+ can move from one-time invoice verification toward supplier intelligence.
+The longer-term aim is not to build another OCR engine. It is to provide an evidence-backed trust layer between messy financial documents and automated accounting. Most invoice automation today asks whether a document can be extracted. We want to answer a more useful question: can we safely trust what we extracted?
 
 ---
 
-# 19. Open-Source Dependencies / Components
+## 19. Open-Source Dependencies / Components
 
-| Dependency | Use |
+| Dependency | Use in the project |
 | --- | --- |
 | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | OCR text and coordinates |
 | [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL) | Vision-language extraction |
@@ -796,43 +572,27 @@ The long-term goal is not another OCR engine. It is an evidence-backed trust lay
 
 ---
 
-# 20. Expected Challenges and Mitigation
+## 20. Expected Challenges and Mitigation
 
-VYOM+ does not claim that every invoice can be fully automated.
+VYOM+ does not claim that every invoice can be fully automated. Some will stay difficult, and for those the right behavior is to ask for human review instead of guessing.
 
-| Challenge | Mitigation |
+| Challenge | How we plan to handle it |
 | --- | --- |
-| Extremely poor handwriting | Dual readers, targeted re-read, then human review instead of guessing |
-| Severe blur | Image pre-processing, document-quality signal in Invoice Health, human review if unresolved |
-| Missing fields | Mark as Needs Review; never fabricate values |
-| Damaged documents | Region-level re-read; escalate if evidence is insufficient |
-| Ambiguous tax information | Rule engine flags inconsistency; status set to Warning or Needs Review |
-| Unusual layouts | Vision model handles layout; cross-check exposes disagreement |
-| Model and OCR disagreement | Treated as a risk signal, not silently resolved |
-| Local hardware limits | Optional cloud GPU configuration for development/demo |
-| Sensitive business data | Local-first architecture by default |
+| Extremely poor handwriting | Use both readers, try a targeted re-read, then send to human review if still unclear. |
+| Severe blur | Pre-process the image, reflect document quality in the Invoice Health report, and escalate if unresolved. |
+| Missing fields | Mark the field as Needs Review and never fill in a made-up value. |
+| Damaged documents | Re-read at the region level, and escalate if the evidence is not enough. |
+| Ambiguous tax information | Let the rule engine flag the inconsistency and set the status to Warning or Needs Review. |
+| Unusual layouts | Rely on the vision model for layout, and use the cross-check to expose disagreement. |
+| Disagreement between OCR and the vision model | Treat it as a risk signal and do not resolve it silently. |
+| Limited local hardware | Offer an optional cloud GPU configuration for development and demos. |
+| Sensitive business data | Run locally by default so invoices stay on the user's machine. |
 
-In these cases, the correct behavior is not to guess. It is to request human review.
-
-**A safe system knows when to stop.**
+A safe system knows when to stop.
 
 ---
 
-## Team
+**VYOM+**
+*Don't just read an invoice. Know whether you can trust it.*
 
-**Team Phantom**
-
-- Aniruddha Chaudhary
-- Aryan Waghchoure
-- Divyanshu Chede
-- Yash Lohiya
-
-**Event:** Hacktober Fest — Open Source AI Hackathon
-
----
-
-# VYOM+
-
-**Don't just read an invoice. Know whether you can trust it.**
-
-> **AI proposes. Rules verify. Evidence explains. Humans resolve only what remains uncertain.**
+AI proposes. Rules verify. Evidence explains. Humans resolve only what remains uncertain.
