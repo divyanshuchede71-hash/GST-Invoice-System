@@ -6,8 +6,8 @@
 
 *Don't just read an invoice. Know whether you can trust it.*
 
-Team Phantom
-Aniruddha Chaudhary, Aryan Waghchoure, Divyanshu Chede, Yash Lohiya
+Team Name: Phantom
+Team Members:Aniruddha Chaudhary, Aryan Waghchoure, Divyanshu Chede, Yash Lohiya
 
 Built for the Hacktober Fest Open Source AI Hackathon.
 
